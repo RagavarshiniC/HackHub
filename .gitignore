@@ -83,3 +83,9 @@ android-sdk/frontend/node_modules/.cache/default-development/3.pack
 frontend/node_modules/.cache/default-development/4.pack
 nextjs-hackhub/node_modules/@next/swc-linux-arm64-musl/next-swc.linux-arm64-musl.node
 nextjs-hackhub/node_modules/@next/swc-linux-arm64-gnu/next-swc.linux-arm64-gnu.node
+.env
+.env.*
+*.env
+credentials.json
+*.key
+.credentials
