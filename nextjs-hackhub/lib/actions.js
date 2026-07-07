@@ -1,6 +1,7 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
+import { redirect } from 'next/navigation';
 import bcrypt from 'bcryptjs';
 import { z } from 'zod';
 import { prisma } from './prisma';
@@ -94,4 +95,98 @@ export async function registerForHackathon(hackathonId) {
 
   revalidatePath(`/hackathon/[slug]`, 'page');
   return { ok: true };
+}
+
+
+// ------- Admin: create a new hackathon --------
+function slugify(title) {
+  return title
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9\s-]/g, '')
+    .replace(/\s+/g, '-')
+    .replace(/-+/g, '-')
+    .slice(0, 60);
+}
+
+const createHackathonSchema = z.object({
+  title: z.string().min(3, 'Title must be at least 3 characters'),
+  description: z.string().min(10, 'Description must be at least 10 characters'),
+  category: z.string().min(1, 'Category is required'),
+  mode: z.enum(['Online', 'Hybrid', 'In-person'], { message: 'Pick a valid mode' }),
+  location: z.string().min(1, 'Location is required'),
+  date: z.string().min(1, 'Start date is required'),
+  endDate: z.string().min(1, 'End date is required'),
+  prize: z.string().min(1, 'Prize is required'),
+  image: z.string().url('Image must be a valid URL'),
+  tags: z.string().optional().default(''),
+  featured: z.boolean().optional().default(false),
+});
+
+export async function createHackathon(prevState, formData) {
+  const session = await auth();
+  if (!session?.user || session.user.role !== 'admin') {
+    return { error: 'You must be signed in as an admin.' };
+  }
+
+  const parsed = createHackathonSchema.safeParse({
+    title: formData.get('title'),
+    description: formData.get('description'),
+    category: formData.get('category'),
+    mode: formData.get('mode'),
+    location: formData.get('location'),
+    date: formData.get('date'),
+    endDate: formData.get('endDate'),
+    prize: formData.get('prize'),
+    image: formData.get('image'),
+    tags: formData.get('tags') || '',
+    featured: formData.get('featured') === 'on',
+  });
+
+  if (!parsed.success) {
+    return { error: parsed.error.errors[0].message };
+  }
+
+  const d = parsed.data;
+  const start = new Date(d.date);
+  const end = new Date(d.endDate);
+  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) {
+    return { error: 'Invalid date(s) provided.' };
+  }
+  if (end < start) {
+    return { error: 'End date cannot be before start date.' };
+  }
+
+  // Ensure unique slug
+  const base = slugify(d.title) || 'hackathon';
+  let slug = base;
+  let i = 1;
+  // eslint-disable-next-line no-await-in-loop
+  while (await prisma.hackathon.findUnique({ where: { slug } })) {
+    slug = `${base}-${i++}`;
+  }
+
+  await prisma.hackathon.create({
+    data: {
+      slug,
+      title: d.title,
+      description: d.description,
+      category: d.category,
+      mode: d.mode,
+      location: d.location,
+      date: start,
+      endDate: end,
+      prize: d.prize,
+      image: d.image,
+      tags: d.tags,
+      featured: d.featured,
+      participants: 0,
+      organizerId: session.user.id,
+    },
+  });
+
+  revalidatePath('/admin/dashboard');
+  revalidatePath('/explore');
+  revalidatePath('/');
+  redirect(`/hackathon/${slug}`);
 }

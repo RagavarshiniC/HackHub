@@ -5,13 +5,16 @@ import { prisma } from '@/lib/prisma';
 
 export const metadata = { title: 'Admin dashboard' };
 
+// Re-fetch fresh data on every request so newly-created hackathons show up.
+export const dynamic = 'force-dynamic';
+
 export default async function AdminDashboard() {
   const session = await auth();
   const user = session?.user;
 
   const hackathons = await prisma.hackathon.findMany({
-    orderBy: { date: 'asc' },
-    take: 5,
+    orderBy: { createdAt: 'desc' },
+    take: 8,
   });
 
   const totalParticipants = await prisma.registration.count().catch(() => 0);
@@ -37,9 +40,12 @@ export default async function AdminDashboard() {
             Here is what is happening across your events.
           </p>
         </div>
-        <button className="inline-flex items-center gap-2 h-11 px-6 rounded-full brand-gradient-bg text-white">
+        <Link
+          href="/admin/new"
+          className="inline-flex items-center gap-2 h-11 px-6 rounded-full brand-gradient-bg text-white shadow-md shadow-violet-500/20 hover:opacity-95"
+        >
           <PlusCircle className="w-4 h-4" /> Host a new hackathon
-        </button>
+        </Link>
       </div>
 
       <div className="mt-8 grid grid-cols-2 lg:grid-cols-4 gap-4">
